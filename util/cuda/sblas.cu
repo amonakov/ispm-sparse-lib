@@ -142,21 +142,25 @@ negaxpy_asum_kernel(const T *ap, const T *x, T *y, T *s, int n)
     s[blockIdx.x] = asum;
 }
 
+static int
+cuda_full_launch_blocks(int n_threads)
+{
+  int device;
+  struct cudaDeviceProp prop;
+  cudaGetDevice(&device);
+  cudaGetDeviceProperties(&prop, device);
+  return prop.maxThreadsPerMultiProcessor / n_threads * prop.multiProcessorCount;
+}
+
 template<typename T>
 void
 negaxpy_asum(const T *a, const T *x, T *y, T *s, int n_elts)
 {
   const int n_threads = 256;
-  static int n_blocks;
+  static int n_blocks = cuda_full_launch_blocks(n_threads);
   static T *tmp;
   if (!tmp)
     {
-      int device, n_sms, n_threads_per_sm;
-      cudaGetDevice(&device);
-      cudaDeviceGetAttribute(&n_sms, cudaDevAttrMultiProcessorCount, device);
-      cudaDeviceGetAttribute(&n_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, device);
-      n_blocks = n_threads_per_sm / n_threads * n_sms;
-
       cudaMalloc(&tmp, n_blocks * sizeof(T));
     }
   negaxpy_asum_kernel<T, n_threads><<<n_blocks, n_threads>>>(a, x, y, tmp, n_elts);
@@ -186,16 +190,10 @@ void
 dot(const T *x, const T *y, T *s, int n_elts)
 {
   const int n_threads = 256;
-  static int n_blocks;
+  static int n_blocks = cuda_full_launch_blocks(n_threads);
   static T *tmp;
   if (!tmp)
     {
-      int device, n_sms, n_threads_per_sm;
-      cudaGetDevice(&device);
-      cudaDeviceGetAttribute(&n_sms, cudaDevAttrMultiProcessorCount, device);
-      cudaDeviceGetAttribute(&n_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, device);
-      n_blocks = n_threads_per_sm / n_threads * n_sms;
-
       cudaMalloc(&tmp, n_blocks * sizeof(T));
     }
   dot_kernel<T, n_threads><<<n_blocks, n_threads>>>(x, y, tmp, n_elts);
@@ -266,16 +264,10 @@ ppcg_update_vectors(T *resnorm, T *gamma, T *delta, const T *alpha, const T *bet
                   const T *n, const T *m, T *p, T *s, T *q, T *z, T *x, T *r, T *u, T *w, int n_elts)
 {
   const int n_threads = 256;
-  static int n_blocks;
+  static int n_blocks = cuda_full_launch_blocks(n_threads);
   static T *tmp1, *tmp2, *tmp3;
   if (!tmp1)
     {
-      int device, n_sms, n_threads_per_sm;
-      cudaGetDevice(&device);
-      cudaDeviceGetAttribute(&n_sms, cudaDevAttrMultiProcessorCount, device);
-      cudaDeviceGetAttribute(&n_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, device);
-      n_blocks = n_threads_per_sm / n_threads * n_sms;
-
       cudaMalloc(&tmp1, n_blocks * sizeof(T));
       cudaMalloc(&tmp2, n_blocks * sizeof(T));
       cudaMalloc(&tmp3, n_blocks * sizeof(T));
