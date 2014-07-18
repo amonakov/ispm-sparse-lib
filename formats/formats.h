@@ -69,12 +69,12 @@ struct slell_matrix: matrix_shape
 
   slell_matrix() {}
 
-  unsigned spmv_bytes(bool effective = false)
+  unsigned spmv_bytes(bool effective = false, int vec_elt_size = sizeof(E))
   {
     return (sizeof(unsigned) * slice_ptr.size()
             + sizeof(unsigned) * (effective ? n_nz : cols.size())
             + sizeof(E)        * (effective ? n_nz : elms.size())
-            + sizeof(E) * 2 * n_rows);
+            + sizeof(vec_elt_size) * 2 * n_rows);
   }
 
   E *slice_elt_ptr(unsigned row, unsigned &slice_hint)
