@@ -17,7 +17,7 @@ enum spmv_plan_flags {
   SPMV_PLAN_NO_DEVICE    = 002
 };
 
-template<class E>
+template<class T, class E = T>
 struct spmv_plan
 {
   slell_matrix<E, host_memory_space_tag>   *host_matrix;
@@ -55,16 +55,14 @@ struct spmv_plan
      (csr_to_slell(m, mparams.S, mparams.H, mparams.V, mparams.D));
   }
 
-  template<class T>
   void execute_spmv(vector<T, device_memory_space_tag> &x,
 		    vector<T, device_memory_space_tag> &y);
 
-  template<class T>
   void execute_spmv(T *xptr, T *yptr);
 };
 
-template<class E>
-spmv_plan<E>::spmv_plan(const csr_matrix<E> &m, spmv_plan_kind kind, unsigned flags)
+template<class T, class E>
+spmv_plan<T, E>::spmv_plan(const csr_matrix<E> &m, spmv_plan_kind kind, unsigned flags)
 {
   unsigned Nthreads_def = 512;
   bool usetex = !(flags & SPMV_NO_TEXTURE_MEMORY);
@@ -112,17 +110,17 @@ spmv_plan<E>::spmv_plan(const csr_matrix<E> &m, spmv_plan_kind kind, unsigned fl
 		      if (testmtx.n_slices > 65535)
 			continue;
 		      slell_matrix<E, device_memory_space_tag> d_testmtx(testmtx);
-		      vector<E, device_memory_space_tag> d_x(d_testmtx.n_rows), d_y(d_testmtx.n_rows);
+		      vector<T, device_memory_space_tag> d_x(d_testmtx.n_rows), d_y(d_testmtx.n_rows);
 		      p.S = s.S;
 		      for (p.N = 128; p.N <= 512; p.N <<= 1)
 			for (p.H = 1; p.H <= 2; p.H <<= 1)
 			  {
 			    if (!p.valid())
 			      continue;
-			    launch_spmv_kernel<E, E>(p, d_testmtx, d_x, d_y);
+			    launch_spmv_kernel<T, E>(p, d_testmtx, d_x, d_y);
 			    cudatimer t;
 			    t.start();
-			    launch_spmv_kernel<E, E>(p, d_testmtx, d_x, d_y);
+			    launch_spmv_kernel<T, E>(p, d_testmtx, d_x, d_y);
 			    t.stop();
 			    if (best_t > t.elapsed_seconds())
 			      {
@@ -147,17 +145,17 @@ spmv_plan<E>::spmv_plan(const csr_matrix<E> &m, spmv_plan_kind kind, unsigned fl
     }
 }
 
-template<class E> template<class T>
+template<class T, class E>
 void
-spmv_plan<E>::execute_spmv(vector<T, device_memory_space_tag> &x,
-			   vector<T, device_memory_space_tag> &y)
+spmv_plan<T, E>::execute_spmv(vector<T, device_memory_space_tag> &x,
+			      vector<T, device_memory_space_tag> &y)
 {
   launch_spmv_kernel<T, E>(this->params, *this->device_matrix, x, y);
 }
 
-template<class E> template<class T>
+template<class T, class E>
 void
-spmv_plan<E>::execute_spmv(T *xptr, T *yptr)
+spmv_plan<T, E>::execute_spmv(T *xptr, T *yptr)
 {
   launch_spmv_kernel<T, E>(this->params, *this->device_matrix, xptr, yptr);
 }
