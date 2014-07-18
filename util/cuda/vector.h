@@ -2,6 +2,7 @@
 #define VECTOR_H
 
 #include <vector>
+#include <cstring>
 #include <driver_types.h>
 #include <cuda_runtime.h>
 
@@ -99,7 +100,7 @@ template<typename T> class vector<T, device_memory_space_tag>
   void allocate()
   {
     if (pinned)
-      CUDA_CHECK(cudaMallocHost((void **)&d_ptr, n_reserved * sizeof(T)));
+      CUDA_CHECK(cudaHostAlloc((void **)&d_ptr, n_reserved * sizeof(T), cudaHostAllocMapped));
     else
       CUDA_CHECK(cudaMalloc((void **)&d_ptr, n_reserved * sizeof(T)));
   }
@@ -126,7 +127,10 @@ public:
     pinned(pinned)
   {
     allocate();
-    CUDA_CHECK(cudaMemset((void *)d_ptr, 0, n_reserved * sizeof(T)));
+    if (pinned)
+      memset((void *)d_ptr, 0, n_reserved * sizeof(T));
+    else
+      CUDA_CHECK(cudaMemset((void *)d_ptr, 0, n_reserved * sizeof(T)));
   }
   template<typename SpaceSrc>
   vector(const vector<T, SpaceSrc> &v):
