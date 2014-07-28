@@ -100,9 +100,9 @@ template<typename T> class vector<T, device_memory_space_tag>
   void allocate()
   {
     if (pinned)
-      CUDA_CHECK(cudaHostAlloc((void **)&d_ptr, n_reserved * sizeof(T), cudaHostAllocMapped));
+      CUDA_CHECK(cudaHostAlloc(&d_ptr, n_reserved * sizeof(T), cudaHostAllocMapped));
     else
-      CUDA_CHECK(cudaMalloc((void **)&d_ptr, n_reserved * sizeof(T)));
+      CUDA_CHECK(cudaMalloc(&d_ptr, n_reserved * sizeof(T)));
   }
   void deallocate()
   {
@@ -128,9 +128,9 @@ public:
   {
     allocate();
     if (pinned)
-      memset((void *)d_ptr, 0, n_reserved * sizeof(T));
+      memset(d_ptr, 0, n_reserved * sizeof(T));
     else
-      CUDA_CHECK(cudaMemset((void *)d_ptr, 0, n_reserved * sizeof(T)));
+      CUDA_CHECK(cudaMemset(d_ptr, 0, n_reserved * sizeof(T)));
   }
   template<typename SpaceSrc>
   vector(const vector<T, SpaceSrc> &v):
