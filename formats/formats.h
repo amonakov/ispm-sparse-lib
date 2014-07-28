@@ -23,9 +23,9 @@ struct csr_matrix: matrix_shape
   void pad(int k)
     {
       k--;
-      n_rows = (n_rows + k) & ~k;
+      int n_padded_rows = (n_rows + k) & ~k;
       int last = row_ptr.back();
-      while ((int)row_ptr.size() < n_rows + 1)
+      for (; n_rows < n_padded_rows; n_rows++)
 	row_ptr.push_back(last);
     }
 
