@@ -3,11 +3,11 @@
 
 enum {MIN_SLICE_HEIGHT = 32, MAX_SLICE_HEIGHT = 512};
 
-static unsigned
+static int
 estimate_slice_height(const int *row_ptr, int cur_row, int n_rows,
 		      int n_threads, int n_elms)
 {
-  unsigned slice_size;
+  int slice_size;
   enum {MAX_WASTE_RATIO = 100, ELTS_PER_THREAD_RATIO = 4};
   float waste_per_row = 0.01 * n_elms * MAX_WASTE_RATIO / n_rows;
   int max_len = 0, waste = 0, used = 0;
@@ -50,7 +50,7 @@ template<class T>
 static void
 copy_csr_elts_vslell(const csr_matrix<T> &A,
 		     slell_matrix<T, host_memory_space_tag> &B,
-		     unsigned slice_size,
+		     int slice_size,
 		     int cur_row)
 {
   int max_len = 0;
@@ -81,9 +81,9 @@ copy_csr_elts_vslell(const csr_matrix<T> &A,
 }
 
 static int
-hblk_maxslen(unsigned *slen, unsigned *blen,
-	     unsigned slice_size, unsigned maxblen,
-	     unsigned hblock)
+hblk_maxslen(int *slen, int *blen,
+	     int slice_size, int maxblen,
+	     int hblock)
 {
   int maxslen = 0;
   for (int i = 0; i < slice_size; i++)
@@ -98,12 +98,12 @@ hblk_maxslen(unsigned *slen, unsigned *blen,
 }
 
 static int
-hblk_cost(unsigned *slen, unsigned *blen,
-	  unsigned slice_size, unsigned maxblen,
-	  unsigned hblock,
-	  unsigned smul, unsigned bmul)
+hblk_cost(int *slen, int *blen,
+	  int slice_size, int maxblen,
+	  int hblock,
+	  int smul, int bmul)
 {
-  unsigned maxslen = hblk_maxslen(slen, blen, slice_size, maxblen, hblock);
+  int maxslen = hblk_maxslen(slen, blen, slice_size, maxblen, hblock);
   return smul * maxslen + bmul * maxblen;
 }
 
@@ -111,16 +111,16 @@ template<class T>
 static void
 copy_csr_elts_hblocks(const csr_matrix<T> &A,
 		      slell_matrix<T, host_memory_space_tag> &B,
-		      unsigned slice_size,
+		      int slice_size,
 		      int cur_row,
-		      unsigned hblock)
+		      int hblock)
 {
-  unsigned *slen = new unsigned[slice_size];
-  unsigned *blen = new unsigned[slice_size];
-  unsigned minblen = UINT_MAX, maxblen = 0;
+  int *slen = new int[slice_size];
+  int *blen = new int[slice_size];
+  int minblen = INT_MAX, maxblen = 0;
   for (int rr = cur_row; rr < cur_row + slice_size; rr++)
     {
-      unsigned clen = 0, cblen = 0;
+      int clen = 0, cblen = 0;
       int i;
       for (i = A.row_ptr[rr]; i + hblock - 1 < A.row_ptr[rr + 1];)
 	if (!(A.cols[i] & (hblock - 1))
@@ -143,26 +143,26 @@ copy_csr_elts_hblocks(const csr_matrix<T> &A,
     }
   while (maxblen - minblen >= 3)
     {
-      unsigned d = (maxblen - minblen) / 3;
-      unsigned blen1 = minblen + d;
-      unsigned blen2 = blen1 + d;
-      unsigned cost1 = hblk_cost(slen, blen, slice_size, blen1, hblock,
-				 sizeof(unsigned) + sizeof(T),
-				 sizeof(unsigned) + hblock * sizeof(T));
-      unsigned cost2 = hblk_cost(slen, blen, slice_size, blen2,
-				 sizeof(unsigned) + sizeof(T), hblock,
-				 sizeof(unsigned) + hblock * sizeof(T));
+      int d = (maxblen - minblen) / 3;
+      int blen1 = minblen + d;
+      int blen2 = blen1 + d;
+      int cost1 = hblk_cost(slen, blen, slice_size, blen1, hblock,
+				 sizeof(int) + sizeof(T),
+				 sizeof(int) + hblock * sizeof(T));
+      int cost2 = hblk_cost(slen, blen, slice_size, blen2,
+				 sizeof(int) + sizeof(T), hblock,
+				 sizeof(int) + hblock * sizeof(T));
       if (cost1 <= cost2)
 	maxblen = blen2;
       else
 	minblen = blen1;
     }
-  unsigned min_cost = UINT_MAX, min_cost_blen = UINT_MAX;
+  int min_cost = INT_MAX, min_cost_blen = INT_MAX;
   for (; minblen <= maxblen; minblen++)
     {
-      unsigned cost = hblk_cost(slen, blen, slice_size, minblen, hblock,
-				sizeof(unsigned) + sizeof(T),
-				sizeof(unsigned) + hblock * sizeof(T));
+      int cost = hblk_cost(slen, blen, slice_size, minblen, hblock,
+				sizeof(int) + sizeof(T),
+				sizeof(int) + hblock * sizeof(T));
       if (min_cost > cost)
 	{
 	  min_cost = cost;
@@ -170,7 +170,7 @@ copy_csr_elts_hblocks(const csr_matrix<T> &A,
 	}
     }
   maxblen = min_cost_blen;
-  unsigned maxslen = hblk_maxslen(slen, blen, slice_size, maxblen, hblock);
+  int maxslen = hblk_maxslen(slen, blen, slice_size, maxblen, hblock);
   int cofs = B.cols.size();
   int eofs = B.elms.size();
   int nse = maxslen * slice_size;
@@ -232,19 +232,19 @@ copy_csr_elts_hblocks(const csr_matrix<T> &A,
 }
 
 template<class T>
-static unsigned
+static int
 find_diagonals(const csr_matrix<T> &A,
-	       unsigned slice_size,
+	       int slice_size,
 	       int cur_row,
 	       std::vector<int> &diag_pos)
 {
-  unsigned rowlen[slice_size];
+  int rowlen[slice_size];
   int rowpos[slice_size];
-  unsigned maxlen = 0;
+  int maxlen = 0;
   int longrow = cur_row;
   for (int rr = cur_row; rr < cur_row + slice_size; rr++)
     {
-      unsigned len = A.row_ptr[rr + 1] - A.row_ptr[rr];
+      int len = A.row_ptr[rr + 1] - A.row_ptr[rr];
       rowlen[rr - cur_row] = len;
       rowpos[rr - cur_row] = A.row_ptr[rr];
       if (maxlen < len)
@@ -287,18 +287,18 @@ template<class T>
 static void
 copy_csr_elts_diags(const csr_matrix<T> &A,
 		    slell_matrix<T, host_memory_space_tag> &B,
-		    unsigned slice_size,
+		    int slice_size,
 		    int cur_row,
 		    std::vector<int> &diag_pos)
 {
   int diag_start = diag_pos.size();
-  unsigned maxlen = find_diagonals(A, slice_size, cur_row, diag_pos);
+  int maxlen = find_diagonals(A, slice_size, cur_row, diag_pos);
 
-  unsigned ccofs = B.cols.size();
-  unsigned ecofs = B.elms.size();
-  unsigned nce = maxlen * slice_size;
-  unsigned edofs = ecofs + nce;
-  unsigned nde = (diag_pos.size() - diag_start) * slice_size;
+  int ccofs = B.cols.size();
+  int ecofs = B.elms.size();
+  int nce = maxlen * slice_size;
+  int edofs = ecofs + nce;
+  int nde = (diag_pos.size() - diag_start) * slice_size;
   B.cols.resize(B.cols.size() + nce);
   B.elms.resize(B.elms.size() + nce + nde);
   for (int rr = cur_row; rr < cur_row + slice_size; rr++)
@@ -308,10 +308,11 @@ copy_csr_elts_diags(const csr_matrix<T> &A,
       for (int i = A.row_ptr[rr]; i < A.row_ptr[rr + 1]; i++)
 	{
 	  int c = A.cols[i], d = c - (rr - cur_row) + slice_size;
-	  while (di < diag_pos.size()
+	  int n_diags = diag_pos.size();
+	  while (di < n_diags
 		 && diag_pos[di] < d)
 	    di++;
-	  if (di < diag_pos.size()
+	  if (di < n_diags
 	      && diag_pos[di] == d)
 	    {
 	      int nd = di - diag_start;
@@ -336,7 +337,7 @@ copy_csr_elts_diags(const csr_matrix<T> &A,
 
 template<class T>
 slell_matrix<T, host_memory_space_tag>
-csr_to_slell(const csr_matrix<T> &A, int req_slice_height, unsigned hblock,
+csr_to_slell(const csr_matrix<T> &A, int req_slice_height, int hblock,
 	     bool var_height, bool use_diags, int min_height = 4)
 {
   const_cast<csr_matrix<T> &>(A).pad(MAX_SLICE_HEIGHT);
@@ -350,8 +351,8 @@ csr_to_slell(const csr_matrix<T> &A, int req_slice_height, unsigned hblock,
   B.n_slices = 0;
   B.cols.reserve(A.cols.size() * 3 / 2);
   B.elms.reserve(A.cols.size() * 3 / 2);
-  unsigned slice_size;
-  unsigned slice_ptr_inc = 1;
+  int slice_size;
+  int slice_ptr_inc = 1;
   B.slice_ptr.push_back(0);
   if (hblock > 1)
     {
@@ -404,11 +405,10 @@ csr_to_slell(const csr_matrix<T> &A, int req_slice_height, unsigned hblock,
   if (use_diags)
     {
       int dp_off = var_height ? 3 : 2;
-      for (int i = 0; i <= B.n_slices; i++)
+      for (unsigned i = 0; i <= B.n_slices; i++)
 	B.slice_ptr[dp_off + i * slice_ptr_inc] += B.slice_ptr.size();
       B.slice_ptr.reserve(B.slice_ptr.size() + diag_pos.size());
-      for (int i = 0; i < diag_pos.size(); i++)
-	B.slice_ptr.push_back(diag_pos[i]);
+      B.slice_ptr.insert(B.slice_ptr.end(), diag_pos.begin(), diag_pos.end());
     }
   return B;
 }
