@@ -1,9 +1,6 @@
 #ifdef TEMPLATE_DECLARATION
-TEMPLATE_DECLARATION void ddivide(T *num, T *denom, T *frac);
 TEMPLATE_DECLARATION void copy_indexed(T *dst, const T *src, const int *i, int n_elts);
 TEMPLATE_DECLARATION void add_indexed(T *dst, const T *src, const int *i, int n_elts);
-TEMPLATE_DECLARATION void xpby(T *x, const T *x0, const T *y, const T *b, int n_elts);
-TEMPLATE_DECLARATION void negaxpy_asum(const T *a, const T *x, T *y, T *s, int n_elts);
 TEMPLATE_DECLARATION void dot(const T *x, const T *y, T *s, int n_elts);
 
 TEMPLATE_DECLARATION void ppcg_update_scalars(T *alpha, T *beta, const T *gamma, const T *gammaold, const T *delta);

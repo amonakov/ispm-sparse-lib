@@ -7,21 +7,6 @@
 namespace sblas
 {
 
-template<typename T>
-__global__ static void
-ddivide_kernel(T *num, T *denom, T *frac)
-{
-  *frac = fabs(*num / *denom);
-}
-
-template<typename T>
-void
-ddivide(T *num, T *denom, T *frac)
-{
-  ddivide_kernel<<<1, 1>>>(num, denom, frac);
-}
-
-
 template<typename T, int Nthr>
 __global__ static void
 copy_indexed_kernel(T *dst, const T *src, const int *i, int n)
@@ -59,26 +44,6 @@ add_indexed(T *dst, const T *src, const int *i, int n_elts)
   const int n_threads = 256;
   int n_blocks = (n_elts + n_threads - 1) / n_threads;
   add_indexed_kernel<T, n_threads><<<n_blocks, n_threads>>>(dst, src, i, n_elts);
-}
-
-
-template<typename T, int Nthr>
-__global__ static void
-xpby_kernel(T *x, const T *x0, const T *y, const T *b, int n)
-{
-  int idx = threadIdx.x + Nthr * blockIdx.x;
-  if (idx >= n)
-    return;
-  x[idx] = *b * x0[idx] + y[idx];
-}
-
-template<typename T>
-void
-xpby(T *x, const T *x0, const T *y, const T *b, int n_elts)
-{
-  const int n_threads = 256;
-  int n_blocks = (n_elts + n_threads - 1) / n_threads;
-  xpby_kernel<T, n_threads><<<n_blocks, n_threads>>>(x, x0, y, b, n_elts);
 }
 
 
@@ -122,26 +87,6 @@ sum3_kernel(const T *x1, const T *x2, const T *x3, T *s1, T *s2, T *s3, int n)
     }
 }
 
-template<typename T, int Nthr>
-__global__ static void
-negaxpy_asum_kernel(const T *ap, const T *x, T *y, T *s, int n)
-{
-  T a = *ap, asum = 0;
-  for (int i = threadIdx.x + Nthr * blockIdx.x;
-       i < n;
-       i += Nthr * gridDim.x)
-    {
-      T v = y[i] - a * x[i];
-      y[i] = v;
-      asum += fabs(v);
-    }
-  __shared__ T reduce_mem[Nthr / 2];
-  reduce_cols_cond<T, Nthr, 1> reduce;
-  asum = reduce(reduce_mem, asum);
-  if (!threadIdx.x)
-    s[blockIdx.x] = asum;
-}
-
 static int
 cuda_full_launch_blocks(int n_threads)
 {
@@ -150,21 +95,6 @@ cuda_full_launch_blocks(int n_threads)
   cudaGetDevice(&device);
   cudaGetDeviceProperties(&prop, device);
   return prop.maxThreadsPerMultiProcessor / n_threads * prop.multiProcessorCount;
-}
-
-template<typename T>
-void
-negaxpy_asum(const T *a, const T *x, T *y, T *s, int n_elts)
-{
-  const int n_threads = 256;
-  static int n_blocks = cuda_full_launch_blocks(n_threads);
-  static T *tmp;
-  if (!tmp)
-    {
-      cudaMalloc(&tmp, n_blocks * sizeof(T));
-    }
-  negaxpy_asum_kernel<T, n_threads><<<n_blocks, n_threads>>>(a, x, y, tmp, n_elts);
-  sum_kernel<T, n_threads><<<1, n_threads>>>(tmp, s, n_blocks);
 }
 
 template<typename T, int Nthr>
