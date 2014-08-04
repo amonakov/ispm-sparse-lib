@@ -1,15 +1,34 @@
 #ifdef TEMPLATE_DECLARATION
-TEMPLATE_DECLARATION void copy_indexed(T *dst, const T *src, const int *i, int n_elts);
-TEMPLATE_DECLARATION void add_indexed(T *dst, const T *src, const int *i, int n_elts);
-TEMPLATE_DECLARATION void dot(const T *x, const T *y, T *s, int n_elts);
+TEMPLATE_DECLARATION
+void
+copy_indexed(DT *dst, const DT *src, const devmem<int> *i, int n_elts);
 
-TEMPLATE_DECLARATION void ppcg_update_scalars(T *alpha, T *beta, const T *gamma, const T *gammaold, const T *delta);
-TEMPLATE_DECLARATION void ppcg_update_vectors(T *resnorm, T *gamma, T *delta, const T *alpha, const T *beta,
-					      const T *n, const T *m, T *p, T *s, T *q, T *z, T *x, T *r, T *u, T *w, int n_elts);
+TEMPLATE_DECLARATION
+void
+add_indexed (DT *dst, const DT *src, const devmem<int> *i, int n_elts);
+
+TEMPLATE_DECLARATION
+void
+dot(const DT *x, const DT *y, DT *s, int n_elts);
+
+TEMPLATE_DECLARATION
+void
+ppcg_update_scalars(DT *alpha, DT *beta,
+                    const DT *gamma, const DT *gammaold, const DT *delta);
+
+TEMPLATE_DECLARATION
+void
+ppcg_update_vectors(DT *resnorm, DT *gamma, DT *delta,
+                    const DT *alpha, const DT *beta,
+                    const DT *n, const DT *m,
+                    DT *p, DT *s, DT *q, DT *z, DT *x, DT *r, DT *u, DT *w,
+                    int n_elts);
 #else
 
 #ifndef SBLAS_H
 #define SBLAS_H
+
+#define DT devmem<T>
 
 namespace sblas
 {
@@ -29,6 +48,8 @@ namespace sblas
 #undef TEMPLATE_DECLARATION
 
 }
+
+#undef DT
 
 #endif
 

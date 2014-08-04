@@ -2,28 +2,34 @@
 #include <stdio.h>
 #include <assert.h>
 #include "cuda/reduce.h"
+#include "devmem.h"
+#include "vector.h"
 #include "sblas.h"
+
+#define DT devmem<T>
 
 namespace sblas
 {
+
+#define P(p) uncast_devmem(p)
+
+static const int n_threads = 256;
 
 template<typename T, int Nthr>
 __global__ static void
 copy_indexed_kernel(T *dst, const T *src, const int *i, int n)
 {
   int idx = threadIdx.x + Nthr * blockIdx.x;
-  if (idx >= n)
-    return;
-  dst[idx] = src[i[idx]];
+  if (idx < n)
+    dst[idx] = src[i[idx]];
 }
 
 template<typename T>
 void
-copy_indexed(T *dst, const T *src, const int *i, int n_elts)
+copy_indexed(DT *dst, const DT *src, const devmem<int> *i, int n_elts)
 {
-  const int n_threads = 256;
   int n_blocks = (n_elts + n_threads - 1) / n_threads;
-  copy_indexed_kernel<T, n_threads><<<n_blocks, n_threads>>>(dst, src, i, n_elts);
+  copy_indexed_kernel<T, n_threads><<<n_blocks, n_threads>>>(P(dst), P(src), P(i), n_elts);
 }
 
 
@@ -32,18 +38,16 @@ __global__ static void
 add_indexed_kernel(T *dst, const T *src, const int *i, int n)
 {
   int idx = threadIdx.x + Nthr * blockIdx.x;
-  if (idx >= n)
-    return;
-  dst[i[idx]] += src[idx];
+  if (idx < n)
+    dst[i[idx]] += src[idx];
 }
 
 template<typename T>
 void
-add_indexed(T *dst, const T *src, const int *i, int n_elts)
+add_indexed(DT *dst, const DT *src, const devmem<int> *i, int n_elts)
 {
-  const int n_threads = 256;
   int n_blocks = (n_elts + n_threads - 1) / n_threads;
-  add_indexed_kernel<T, n_threads><<<n_blocks, n_threads>>>(dst, src, i, n_elts);
+  add_indexed_kernel<T, n_threads><<<n_blocks, n_threads>>>(P(dst), P(src), P(i), n_elts);
 }
 
 
@@ -87,15 +91,37 @@ sum3_kernel(const T *x1, const T *x2, const T *x3, T *s1, T *s2, T *s3, int n)
     }
 }
 
-static int
-cuda_full_launch_blocks(int n_threads)
-{
-  int device;
-  struct cudaDeviceProp prop;
-  cudaGetDevice(&device);
-  cudaGetDeviceProperties(&prop, device);
-  return prop.maxThreadsPerMultiProcessor / n_threads * prop.multiProcessorCount;
-}
+template<typename T, int Nthr = n_threads>
+class full_launch {
+  int blocks_;
+  static const int n_vecs = 3;
+  vector<T, device_memory_space_tag> vecs[n_vecs];
+  full_launch()
+  {
+    int device;
+    struct cudaDeviceProp prop;
+    CUDA_CHECK(cudaGetDevice(&device));
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
+    blocks_ = prop.maxThreadsPerMultiProcessor / Nthr * prop.multiProcessorCount;
+
+    for (int i = 0; i < n_vecs; i++)
+      vecs[i].resize(blocks_);
+  }
+public:
+  static full_launch &the()
+  {
+    static full_launch instance;
+    return instance;
+  }
+  int blocks()
+  {
+    return blocks_;
+  }
+  DT *vec(int i = 0)
+  {
+    return vecs[i].data();
+  }
+};
 
 template<typename T, int Nthr>
 __global__ static void
@@ -117,23 +143,20 @@ dot_kernel(const T *x, const T *y, T *s, int n)
 
 template<typename T>
 void
-dot(const T *x, const T *y, T *s, int n_elts)
+dot(const DT *x, const DT *y, DT *s, int n_elts)
 {
-  const int n_threads = 256;
-  static int n_blocks = cuda_full_launch_blocks(n_threads);
-  static T *tmp;
-  if (!tmp)
-    {
-      cudaMalloc(&tmp, n_blocks * sizeof(T));
-    }
-  dot_kernel<T, n_threads><<<n_blocks, n_threads>>>(x, y, tmp, n_elts);
-  sum_kernel<T, n_threads><<<1, n_threads>>>(tmp, s, n_blocks);
+  full_launch<T> &config = full_launch<T>::the();
+  int n_blocks = config.blocks();
+  DT *tmp = config.vec();
+  dot_kernel<T, n_threads><<<n_blocks, n_threads>>>(P(x), P(y), P(tmp), n_elts);
+  sum_kernel<T, n_threads><<<1, n_threads>>>(P(tmp), P(s), n_blocks);
 }
 
 
 template<typename T>
 __global__ static void
-ppcg_update_scalars_kernel(T *alpha, T *beta, const T *gamma, const T *gammaold, const T *delta)
+ppcg_update_scalars_kernel(T *alpha, T *beta,
+                           const T *gamma, const T *gammaold, const T *delta)
 {
   T g = *gamma;
   T b = g / *gammaold;
@@ -143,16 +166,21 @@ ppcg_update_scalars_kernel(T *alpha, T *beta, const T *gamma, const T *gammaold,
 
 template<typename T>
 void
-ppcg_update_scalars(T *alpha, T *beta, const T *gamma, const T *gammaold, const T *delta)
+ppcg_update_scalars(DT *alpha, DT *beta,
+                    const DT *gamma, const DT *gammaold, const DT *delta)
 {
-  ppcg_update_scalars_kernel<<<1, 1>>>(alpha, beta, gamma, gammaold, delta);
+  ppcg_update_scalars_kernel<<<1, 1>>>
+    (P(alpha), P(beta), P(gamma), P(gammaold), P(delta));
 }
 
 
 template<typename T, int Nthr>
 __global__ static void
-ppcg_update_vectors_kernel(T *resnorm_part, T *gamma_part, T *delta_part, const T *alpha, const T *beta,
-                         const T *n, const T *m, T *p, T *s, T *q, T *z, T *x, T *r, T *u, T *w, int n_elts)
+ppcg_update_vectors_kernel(T *resnorm_part, T *gamma_part, T *delta_part,
+                           const T *alpha, const T *beta,
+                           const T *n, const T *m,
+                           T *p, T *s, T *q, T *z, T *x, T *r, T *u, T *w,
+                           int n_elts)
 {
   T a = *alpha, b = *beta, resnorm = 0, gamma = 0, delta = 0;
   for (int i = threadIdx.x + Nthr * blockIdx.x;
@@ -190,21 +218,22 @@ ppcg_update_vectors_kernel(T *resnorm_part, T *gamma_part, T *delta_part, const 
 
 template<typename T>
 void
-ppcg_update_vectors(T *resnorm, T *gamma, T *delta, const T *alpha, const T *beta,
-                  const T *n, const T *m, T *p, T *s, T *q, T *z, T *x, T *r, T *u, T *w, int n_elts)
+ppcg_update_vectors(DT *resnorm, DT *gamma, DT *delta,
+                    const DT *alpha, const DT *beta,
+                    const DT *n, const DT *m,
+                    DT *p, DT *s, DT *q, DT *z, DT *x, DT *r, DT *u, DT *w,
+                    int n_elts)
 {
-  const int n_threads = 256;
-  static int n_blocks = cuda_full_launch_blocks(n_threads);
-  static T *tmp1, *tmp2, *tmp3;
-  if (!tmp1)
-    {
-      cudaMalloc(&tmp1, n_blocks * sizeof(T));
-      cudaMalloc(&tmp2, n_blocks * sizeof(T));
-      cudaMalloc(&tmp3, n_blocks * sizeof(T));
-    }
+  full_launch<T> &config = full_launch<T>::the();
+  int n_blocks = config.blocks();
+  DT *tmp1 = config.vec(0);
+  DT *tmp2 = config.vec(1);
+  DT *tmp3 = config.vec(2);
   ppcg_update_vectors_kernel<T, n_threads><<<n_blocks, n_threads>>>
-    (tmp1, tmp2, tmp3, alpha, beta, n, m, p, s, q, z, x, r, u, w, n_elts);
-  sum3_kernel<T, n_threads><<<1, n_threads>>>(tmp1, tmp2, tmp3, resnorm, gamma, delta, n_blocks);
+    (P(tmp1), P(tmp2), P(tmp3), P(alpha), P(beta),
+     P(n), P(m), P(p), P(s), P(q), P(z), P(x), P(r), P(u), P(w), n_elts);
+  sum3_kernel<T, n_threads><<<1, n_threads>>>
+    (P(tmp1), P(tmp2), P(tmp3), P(resnorm), P(gamma), P(delta), n_blocks);
 }
 
 
