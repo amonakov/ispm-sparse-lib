@@ -1,6 +1,10 @@
 #ifndef ISPM_CUDA_MEMCPY_H
 #define ISPM_CUDA_MEMCPY_H
 
+#include <cuda_runtime.h>
+#include "devmem.h"
+#include "check.h"
+
 struct cudaMemcpyDirection
 {
   template<class T>

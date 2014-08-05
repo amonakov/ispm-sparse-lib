@@ -2,11 +2,10 @@
 #define VECTOR_H
 
 #include <vector>
-#include <cstring>
-#include <driver_types.h>
-#include <cuda_runtime.h>
 
-#include "util/cuda/check.h"
+#include "cudamemcpy.h"
+#include "devmem.h"
+#include "allocator.h"
 
 struct host_memory_space_tag {};
 struct device_memory_space_tag {};

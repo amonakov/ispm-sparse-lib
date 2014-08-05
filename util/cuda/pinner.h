@@ -1,6 +1,9 @@
 #ifndef ISPM_PINNER_H
 #define ISPM_PINNER_H
 
+#include <cuda_runtime.h>
+#include "check.h"
+
 template<typename T>
 class cuda_pinned_region
 {

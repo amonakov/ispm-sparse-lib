@@ -1,6 +1,9 @@
 #ifndef ISPM_ALLOCATOR_H
 #define ISPM_ALLOCATOR_H
 
+#include <cuda_runtime.h>
+#include "check.h"
+
 template<typename T>
 class cuda_device_allocator: public std::allocator<T>
 {
