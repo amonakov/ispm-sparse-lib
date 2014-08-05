@@ -26,20 +26,17 @@ public:
   vector(size_t n, T v)
    : parent(n, v)
   { }
-  template<typename SpaceSrc>
-  vector(const vector<T, SpaceSrc> &v)
+  vector(const vector<T, device_memory_space_tag> &v)
    : parent(v.size())
   {
-    copy<T, host_memory_space_tag, SpaceSrc>
-        (this->data(), v.data(), v.size());
+    copy(this->data(), v.data(), v.size());
   }
-  template<typename SpaceSrc>
   vector<T, host_memory_space_tag> &
-  operator=(const vector<T, SpaceSrc> &v)
+  operator=(const vector<T, device_memory_space_tag> &v)
   {
-    this->resize(v.size());
-    copy<T, host_memory_space_tag, SpaceSrc>
-        (this->data(), v.data(), v.size());
+    if (this->size() < v.size())
+      resize(v.size());
+    copy(this->data(), v.data(), v.size());
     return *this;
   }
 };
