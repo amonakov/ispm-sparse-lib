@@ -11,51 +11,6 @@
 struct host_memory_space_tag {};
 struct device_memory_space_tag {};
 
-template<typename SpaceDst, typename SpaceSrc>
-struct cudaMemcpyDirection;
-
-template<>
-struct cudaMemcpyDirection<host_memory_space_tag, host_memory_space_tag>
-{
-  static const enum cudaMemcpyKind kind = cudaMemcpyHostToHost;
-};
-
-template<>
-struct cudaMemcpyDirection<host_memory_space_tag, device_memory_space_tag>
-{
-  static const enum cudaMemcpyKind kind = cudaMemcpyDeviceToHost;
-};
-
-template<>
-struct cudaMemcpyDirection<device_memory_space_tag, host_memory_space_tag>
-{
-  static const enum cudaMemcpyKind kind = cudaMemcpyHostToDevice;
-};
-
-template<>
-struct cudaMemcpyDirection<device_memory_space_tag, device_memory_space_tag>
-{
-  static const enum cudaMemcpyKind kind = cudaMemcpyDeviceToDevice;
-};
-
-template<typename T, typename SpaceDst, typename SpaceSrc>
-static void
-copy(T *dst, const T *src, size_t n_elts)
-
-{
-  CUDA_CHECK(cudaMemcpy(dst, src, n_elts * sizeof(T),
-                        cudaMemcpyDirection<SpaceDst, SpaceSrc>::kind));
-}
-
-template<typename T, typename SpaceDst, typename SpaceSrc>
-static void
-copy_async(T *dst, const T *src, size_t n_elts)
-
-{
-  CUDA_CHECK(cudaMemcpyAsync(dst, src, n_elts * sizeof(T),
-                             cudaMemcpyDirection<SpaceDst, SpaceSrc>::kind));
-}
-
 template<typename T, typename memory_space = host_memory_space_tag> class vector;
 
 template<typename T> class vector<T, host_memory_space_tag>
