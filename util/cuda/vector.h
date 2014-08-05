@@ -11,9 +11,11 @@
 struct host_memory_space_tag {};
 struct device_memory_space_tag {};
 
-template<typename T, typename memory_space = host_memory_space_tag> class vector;
+template<typename T, typename memory_space = host_memory_space_tag>
+class vector;
 
-template<typename T> class vector<T, host_memory_space_tag>
+template<typename T>
+class vector<T, host_memory_space_tag>
  : public std::vector<T>
 {
   typedef std::vector<T> parent;
@@ -41,97 +43,46 @@ public:
   }
 };
 
-template<typename T> class vector<T, device_memory_space_tag>
+template<typename T>
+class vector<T, device_memory_space_tag>
+ : private std::vector<devmem<T>, cuda_device_allocator<devmem<T> > >
 {
-  T *d_ptr;
-  size_t n_elts;
-  size_t n_reserved;
-  bool pinned;
-  static const float reserve_factor = 1.1;
-
-  void allocate()
-  {
-    if (pinned)
-      CUDA_CHECK(cudaHostAlloc(&d_ptr, n_reserved * sizeof(T), cudaHostAllocMapped));
-    else
-      CUDA_CHECK(cudaMalloc(&d_ptr, n_reserved * sizeof(T)));
-  }
-  void deallocate()
-  {
-    if (!d_ptr)
-      return;
-    if (pinned)
-      CUDA_CHECK(cudaFreeHost(d_ptr));
-    else
-      CUDA_CHECK(cudaFree(d_ptr));
-  }
+  typedef typename std::vector<devmem<T>, cuda_device_allocator<devmem<T> > >
+    parent;
 public:
-  vector():
-    d_ptr(NULL),
-    n_elts(0),
-    n_reserved(0),
-    pinned(false)
+  vector()
+  { }
+  vector(size_t n)
+   : parent(n)
+  { }
+  vector(const vector<T, host_memory_space_tag> &v)
+   : parent(v.size())
   {
+    copy(this->data(), v.data(), v.size());
   }
-  vector(size_t n, bool pinned = false):
-    n_elts(n),
-    n_reserved(reserve_factor*n),
-    pinned(pinned)
+  template<typename TI>
+  vector(const TI first, const TI last)
+   : parent(last - first)
   {
-    allocate();
-    if (pinned)
-      memset(d_ptr, 0, n_reserved * sizeof(T));
-    else
-      CUDA_CHECK(cudaMemset(d_ptr, 0, n_reserved * sizeof(T)));
+    assign(first, last);
   }
-  template<typename SpaceSrc>
-  vector(const vector<T, SpaceSrc> &v):
-    n_elts(v.size()),
-    n_reserved(reserve_factor*n_elts),
-    pinned(false)
+  template<typename TI>
+  void assign(const TI first, const TI last)
   {
-    allocate();
-    copy<T, device_memory_space_tag, SpaceSrc>
-        (data(), v.data(), v.size());
+    if (first + size() < last)
+      resize(last - first);
+    copy(this->data(), &*first, last - first);
   }
-  template<typename SpaceSrc>
-  vector<T, device_memory_space_tag> &
-  operator=(vector<T, SpaceSrc> &v)
+  template<typename TI>
+  void assign_async(const TI first, const TI last)
   {
-    n_elts = v.size();
-    if (n_reserved < v.size())
-      {
-        deallocate();
-        n_reserved = reserve_factor*n_elts;
-        allocate();
-      }
-    copy<T, device_memory_space_tag, SpaceSrc>
-        (data(), v.data(), v.size());
-    return *this;
+    if (first + size() < last)
+      resize(last - first);
+    copy_async(this->data(), &*first, last - first);
   }
-  ~vector()
-  {
-    deallocate();
-  }
-  size_t size() const
-  {
-    return n_elts;
-  }
-  const T *data() const
-  {
-    return d_ptr;
-  }
-  T *data()
-  {
-    return d_ptr;
-  }
-  void swap(vector<T, device_memory_space_tag> &other)
-  {
-    std::swap(this->d_ptr, other.d_ptr);
-    std::swap(this->n_elts, other.n_elts);
-    std::swap(this->n_reserved, other.n_reserved);
-    std::swap(this->pinned, other.pinned);
-  }
+  using parent::data;
+  using parent::size;
+  using parent::resize;
 };
 
 #endif
