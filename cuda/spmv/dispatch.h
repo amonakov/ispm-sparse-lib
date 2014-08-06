@@ -61,9 +61,9 @@ launch_spmv_kernel_tex(const spmv_params<T, E> &params)
     else
       spmv_kernel_ptr = *spmv_kernel<false, false, T, E, N, S, H, W, V, D>();
   CUDA_CHECK(cudaPeekAtLastError());
-  spmv_kernel_ptr<<<params.matr.n_slices, N, N*sizeof(T)>>>(params.matr.slice_ptr.data(),
-		                                        params.matr.cols.data(),
-					                params.matr.elms.data(),
+  spmv_kernel_ptr<<<params.matr.n_slices, N, N*sizeof(T)>>>(params.matr.slice_ptr.udata(),
+		                                        params.matr.cols.udata(),
+					                params.matr.elms.udata(),
 					                params.xptr,
 					                params.yptr);
 
@@ -188,10 +188,7 @@ launch_spmv_kernel(spmv_launch_params &params,
 		   vector<T, device_memory_space_tag> &x,
 		   vector<T, device_memory_space_tag> &y)
 {
-  spmv_params<T, E> lparams(x.data(), y.data(), m, params);
-  if (!params.valid())
-    return;
-  launch_spmv_kernel_n<T, E>(lparams);
+  launch_spmv_kernel(params, m, x.udata(), y.udata());
 }
 
 template<class T, class E>
