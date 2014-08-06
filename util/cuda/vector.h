@@ -79,6 +79,10 @@ public:
       resize(last - first);
     copy_async(this->data(), &*first, last - first);
   }
+  T *udata()
+  {
+    return uncast_devmem(this->data());
+  }
   using parent::data;
   using parent::size;
   using parent::resize;
