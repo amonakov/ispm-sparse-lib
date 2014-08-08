@@ -5,6 +5,43 @@
 #include "check.h"
 
 template<typename T>
+static devmem<T> *
+host2devmem(T *p)
+{
+  devmem<T> *r;
+  CUDA_CHECK(cudaHostGetDevicePointer(&r, p, 0));
+  return r;
+}
+
+template<typename T>
+static const devmem<T> *
+host2devmem(const T *p)
+{
+  const devmem<T> *r;
+  CUDA_CHECK(cudaHostGetDevicePointer(&r, p, 0));
+  return r;
+}
+
+template<typename T>
+class pinmemptr
+{
+  T *ptr;
+  devmem<T> *devptr;
+public:
+  pinmemptr(T *ptr) :
+    ptr(ptr), devptr(host2devmem(ptr))
+  {}
+  T &operator*()
+  {
+    return *ptr;
+  }
+  devmem<T> *operator()()
+  {
+    return devptr;
+  }
+};
+
+template<typename T>
 class cuda_pinned_region
 {
   T *ptr;
@@ -20,7 +57,7 @@ public:
     ptr(ptr), devptr(0)
   {
     CUDA_CHECK(cudaHostRegister(ptr, n_elts * sizeof(T), cudaHostRegisterMapped));
-    CUDA_CHECK(cudaHostGetDevicePointer(&devptr, ptr, 0));
+    devptr = host2devmem(ptr);
   }
   ~cuda_pinned_region()
   {
