@@ -8,10 +8,10 @@
 static void
 report_cuda_error(cudaError_t err)
 {
-  fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(err));
+  fprintf(stderr, "CUDA error %x: %s\n", err, cudaGetErrorString(err));
   abort();
 }
 
-#define CUDA_CHECK(x) ({cudaError_t e; if (__builtin_expect((e = x), 0)) report_cuda_error(e);})
+#define CUDA_CHECK(x) ({cudaError_t e = x; if (e) report_cuda_error(e);})
 
 #endif
