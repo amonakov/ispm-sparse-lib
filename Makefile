@@ -10,6 +10,7 @@ CXXOPT  := -O2
 CXXFLAGS := $(CXXOPT) -g $(CXXWARN) -fPIC -I. $(CUDA_INCLUDE)
 
 NVCCFLAGS := -O2 -v -I. -gencode arch=compute_$(CUDA_ARCH),code=sm_$(CUDA_ARCH) \
+	-DCUDA_ARCH=$(CUDA_ARCH) \
 	--ptxas-options -v \
 	--cudafe-options --diag_suppress=code_is_unreachable \
 	--compiler-options -fPIC

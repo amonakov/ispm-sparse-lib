@@ -17,6 +17,14 @@ current_device_prop()
 void
 ispm_initialize()
 {
+  cudaDeviceProp p = current_device_prop();
+  int arch = p.major * 10 + p.minor;
+  if (arch != CUDA_ARCH)
+  {
+    fprintf(stderr, "CUDA device compute capability mismatch: "
+            "compiled for sm_%d, got sm_%d\n", CUDA_ARCH, arch);
+    abort();
+  }
   CUDA_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
   CUDA_CHECK(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
 }
