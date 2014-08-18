@@ -2,6 +2,18 @@
 #include "check.h"
 #include "initialize.h"
 
+static cudaDeviceProp
+current_device_prop()
+{
+  int device;
+  CUDA_CHECK(cudaGetDevice(&device));
+
+  cudaDeviceProp prop;
+  CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
+
+  return prop;
+}
+
 void
 ispm_initialize()
 {
@@ -12,17 +24,11 @@ ispm_initialize()
 DeviceIDString
 get_device_string()
 {
-  int device;
-  CUDA_CHECK(cudaGetDevice(&device));
-
-  char busid[13];
-  CUDA_CHECK(cudaDeviceGetPCIBusId(busid, sizeof(busid), device));
-
-  struct cudaDeviceProp prop;
-  CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
+  cudaDeviceProp p = current_device_prop();
 
   DeviceIDString s;
-  snprintf(s.str, sizeof(s.str), "%s (%s)", busid, prop.name);
+  snprintf(s.str, sizeof(s.str), "%04x:%02x:%02x (%s)",
+           p.pciDomainID, p.pciBusID, p.pciDeviceID, p.name);
 
   return s;
 }
