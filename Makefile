@@ -18,7 +18,7 @@ LIB = libispm0-pic.a
 all: $(LIB)
 
 SPMV_OBJS  = cuda/spmv/dispatch-float-float.o cuda/spmv/dispatch-double-float.o cuda/spmv/dispatch-double-double.o
-EXTRA_OBJS = util/cuda/sblas.o fastainv/fastainv.o
+EXTRA_OBJS = util/cuda/sblas.o fastainv/fastainv.o util/cuda/initialize.o
 OBJS = $(SPMV_OBJS) $(EXTRA_OBJS)
 
 $(LIB): $(OBJS)
@@ -28,7 +28,7 @@ cuda/spmv/dispatch-%.o: cuda/spmv/dispatch-%.cu
 	$(NVCC) -c $< -o $@ $(NVCCFLAGS) --compiler-options -fpermissive
 	objcopy --localize-hidden $@
 
-util/cuda/sblas.o: util/cuda/sblas.cu
+util/cuda/%.o: util/cuda/%.cu
 	$(NVCC) -c $< -o $@ $(NVCCFLAGS)
 
 fastainv/fastainv.o: fastainv/fastainv.cpp
